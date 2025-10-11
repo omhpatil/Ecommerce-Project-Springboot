@@ -23,6 +23,7 @@ public class ProductServiceImpl implements ProductService {
     private final ModelMapper modelMapper;
 
     @Override
+    @CacheEvict(value = "products", allEntries = true) // Clear all products cache when creating new product
     public ProductDTO createProduct(ProductDTO productDTO) {
         Product product = modelMapper.map(productDTO, Product.class);
         product = productRepository.save(product);
@@ -46,7 +47,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    @CachePut(value = "products", key = "#id")
+    @CacheEvict(value = "products", allEntries = true)
     public ProductDTO updateProduct(Long id, ProductDTO productDTO) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
@@ -58,7 +59,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    @CacheEvict(value = "products", key = "#id")
+    @CacheEvict(value = "products", allEntries = true)
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));

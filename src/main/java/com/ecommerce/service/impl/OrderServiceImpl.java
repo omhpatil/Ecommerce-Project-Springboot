@@ -26,73 +26,50 @@ public class OrderServiceImpl implements OrderService {
     private final ModelMapper modelMapper;
     private final OrderEventProducer orderEventProducer;
 
-//    @Override
-//    public OrderDTO createOrder(OrderDTO orderDTO) {
-//        orderDTO.setCreatedAt(LocalDateTime.now());
-//        Order order = modelMapper.map(orderDTO, Order.class);
-//        order = orderRepository.save(order);
-//
-//        // Send Kafka event
-//        OrderEvent event = new OrderEvent(
-//                order.getId(),
-//                order.getUserId(),
-//                order.getProductId(),
-//                order.getQuantity(),
-//                order.getTotalPrice()
-//        );
-//        orderEventProducer.sendOrderEvent(event);
-//
-//        return modelMapper.map(order, OrderDTO.class);
-//    }
-
     @Override
     public OrderDTO createOrder(OrderDTO orderDTO) {
-        // 1️⃣ Fetch product from DB
-        Product product = productRepository.findById(orderDTO.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Product not found with id: " + orderDTO.getProductId()));
-
-        // 2️⃣ Check stock availability
-        if (product.getQuantity() < orderDTO.getQuantity()) {
-            throw new RuntimeException("Insufficient stock for product: " + product.getName());
-        }
-
-        // 3️⃣ Update product stock
-        product.setQuantity(product.getQuantity() - orderDTO.getQuantity());
-        productRepository.save(product); // save updated stock
-
-        // 4️⃣ Set order creation time
         orderDTO.setCreatedAt(LocalDateTime.now());
 
-        // 5️⃣ Save order
-        Order order = modelMapper.map(orderDTO, Order.class);
+        // Fetch product entity
+        Product product = productRepository.findById(orderDTO.getProductId())
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + orderDTO.getProductId()));
+
+        // Map DTO to Order entity
+        Order order = new Order();
+        order.setUserId(orderDTO.getUserId());
+        order.setProduct(product); // set the product entity
+        order.setQuantity(orderDTO.getQuantity());
+        order.setTotalPrice(orderDTO.getTotalPrice());
+        order.setCreatedAt(orderDTO.getCreatedAt());
+
         order = orderRepository.save(order);
 
-        // 6️⃣ Send Kafka event
+        // Send Kafka event
         OrderEvent event = new OrderEvent(
                 order.getId(),
                 order.getUserId(),
-                order.getProductId(),
+                product.getId(),
                 order.getQuantity(),
                 order.getTotalPrice()
         );
         orderEventProducer.sendOrderEvent(event);
 
-        return modelMapper.map(order, OrderDTO.class);
+        // Map back to DTO including product name
+        OrderDTO responseDTO = mapToDTO(order);
+        return responseDTO;
     }
-
 
     @Override
     public OrderDTO getOrderById(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
-        return modelMapper.map(order, OrderDTO.class);
+        return mapToDTO(order);
     }
 
     @Override
     public List<OrderDTO> getAllOrders() {
         return orderRepository.findAll().stream()
-                .map(order -> modelMapper.map(order, OrderDTO.class))
+                .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
@@ -101,5 +78,18 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
         orderRepository.delete(order);
+    }
+
+    // Helper method to map Order -> OrderDTO
+    private OrderDTO mapToDTO(Order order) {
+        OrderDTO dto = new OrderDTO();
+        dto.setId(order.getId());
+        dto.setUserId(order.getUserId());
+        dto.setProductId(order.getProduct().getId());
+        dto.setProductName(order.getProduct().getName()); // include product name
+        dto.setQuantity(order.getQuantity());
+        dto.setTotalPrice(order.getTotalPrice());
+        dto.setCreatedAt(order.getCreatedAt());
+        return dto;
     }
 }

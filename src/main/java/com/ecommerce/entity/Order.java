@@ -15,9 +15,11 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private Long userId;
-    private Long productId;
+
+    @ManyToOne
+    @JoinColumn(name = "product_id")
+    private Product product;
     private Integer quantity;
     private Double totalPrice;
     private LocalDateTime createdAt;
 }
-
